@@ -1,4 +1,5 @@
 local taxi, onJob, AiCustomer, AiDestination, AiBlip, AiInTaxi, AiEntering, IsNearCustomer
+local helpNotified = false
 
 --- Functions ---
 function SpawnVehicle(coords)
@@ -60,9 +61,12 @@ function ClearCurrentMission()
     end
 	AiCustomer           = nil
     AiDestination       = nil
+    AiBlip = nil
     AiInTaxi = false
     AiEntering = false
     IsNearCustomer = false
+    helpNotified = false
+    onJob = false
 end
 
 function StartJob()
@@ -153,16 +157,19 @@ end)
 -- Job Thread --
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(1000)
+        Citizen.Wait(0)
         local playerPed = PlayerPedId()
         if onJob then
             if AiCustomer == nil then
-                TriggerEvent("DRP_Core:Info","Taxi Dispatch", tostring("Drive around and search for fares"),4500,false,"leftCenter")
+                if not helpNotified then
+                    TriggerEvent("DRP_Core:Info","Taxi Dispatch", tostring("Drive around and search for fares"),2500,false,"leftCenter")
+                    helpNotified = true
+                end
                 if IsPedInAnyVehicle(playerPed,false) and GetEntitySpeed(playerPed) > 0 then
                     local waiting = GetGameTimer() + GetRandomIntInRange(3000, 4500)
                     while onJob and waiting > GetGameTimer() do
                         Citizen.Wait(1000)
-                        print("Waiting for Fare")
+                        print("Waiting for Fare",onJob)
                     end
                     if onJob and IsPedInAnyVehicle(playerPed,false) and GetEntitySpeed(playerPed) > 0 then
                         AiCustomer = GetRandomWalkingNPC(playerPed)
@@ -189,7 +196,7 @@ Citizen.CreateThread(function()
 					if DoesBlipExist(AiBlip) then
 						RemoveBlip(AiBlip)
 					end
-                    SetEntityAsMissionEntity(AiCustomer, false, true)
+                    SetEntityAsMissionEntity(AiCustomer, false, false)
                     AiCustomer,AiBlip = nil,nil
                 end
                 if IsPedInAnyVehicle(playerPed,false) then
@@ -207,11 +214,15 @@ Citizen.CreateThread(function()
 
 								TaskGoStraightToCoord(AiCustomer, AiDestination.x, AiDestination.y, AiDestination.z, 1.0, -1, 0.0, 0.0)
 								SetEntityAsMissionEntity(AiCustomer, false, true)
-								TriggerServerEvent('esx_taxijob:success')
-								RemoveBlip(AiBlip)
+								TriggerServerEvent('fd_taxi:payOut')
+                                RemoveBlip(AiBlip)
 
-								local scope = function(customer)
-									DeletePed(customer)
+                                local scope = function(customer)
+                                    local ped = customer
+                                    Citizen.SetTimeout(6000,function(ped)
+                                        SetPedAsEnemy(ped,false)
+                                        DeletePed(ped)
+                                    end)
 								end
                                 scope(AiCustomer)
                                 AiCustomer, AiBlip, AiIntaxi, AiEntering, AiDestination, IsNearCustomer = nil, nil, false, false, nil, false
@@ -232,9 +243,9 @@ Citizen.CreateThread(function()
 						local street = table.pack(GetStreetNameAtCoord(AiDestination.x, AiDestination.y, AiDestination.z))
 						local msg    = nil
 						if street[2] ~= 0 and street[2] ~= nil then
-							msg = string.format("Take me to ~y~%s~s~, near ~y~%s", GetStreetNameFromHashKey(street[1]), GetStreetNameFromHashKey(street[2]))
+							msg = string.format("Take me to %s, near %s", GetStreetNameFromHashKey(street[1]), GetStreetNameFromHashKey(street[2]))
 						else
-							msg = string.format("Take me to ~y~%s", GetStreetNameFromHashKey(street[1]))
+							msg = string.format("Take me to %s", GetStreetNameFromHashKey(street[1]))
 						end
 						TriggerEvent('chat:addMessage', {
                             color = { 255, 255, 0},
@@ -253,14 +264,14 @@ Citizen.CreateThread(function()
 
 					if not AiInTaxi then
 						if aiDist <= 40.0 then
-
+                            print(aiDist,isNearCustomer)
 							if not IsNearCustomer then
 								IsNearCustomer = true
 							end
 
 						end
 
-						if aiDist <= 20.0 then
+                        if aiDist <= 20.0 then
 							if not AiEntering then
 								ClearPedTasksImmediately(AiCustomer)
 
@@ -275,7 +286,8 @@ Citizen.CreateThread(function()
 
 								if freeSeat then
 									TaskEnterVehicle(AiCustomer, taxi, -1, freeSeat, 2.0, 0)
-									AiEntering = true
+                                    AiEntering = true
+                                    SetPedAsEnemy(AiCustomer,false)
                                 end
                             end
                         end
@@ -283,7 +295,6 @@ Citizen.CreateThread(function()
                 end
             end
         end
-        Citizen.Wait(500)
     end
 end
 end)

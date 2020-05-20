@@ -1,3 +1,21 @@
+local lastFare = {}
+
+RegisterServerEvent("fd_taxi:payOut")
+AddEventHandler("fd_taxi:payOut", function()
+    local src = source
+    local player = exports["drp_id"]:GetCharacterData(src)
+    local playerJob = exports["drp_jobcore"]:GetPlayerJob(src)
+    local timeNow = os.clock()
+    if playerJob.job == "TAXI" then
+        if not lastFare[src] or timeNow - lastFare[src] > 5 then
+            lastFare[src]=timeNow
+            math.randomseed(os.time())
+            local pay = math.random(Taxi.NPCFare[1],Taxi.NPCFare[2])
+            TriggerEvent("DRP_Bank:AddBankMoney",player,pay)
+        end
+    end
+end)
+
 RegisterServerEvent("fd_taxi:ToggleDuty")
 AddEventHandler("fd_taxi:ToggleDuty", function(unemployed)
     local src = source

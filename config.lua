@@ -13,6 +13,7 @@ Taxi.CarSpawns = {
 }
 
 Taxi.MinimumDistance = 1000
+Taxi.NPCFare = {150,300}
 
 Taxi.JobLocations = {
 	vector3(293.5, -590.2, 42.7),
